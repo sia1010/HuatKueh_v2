@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const { Pool } = require('pg');
 const cors = require('cors');
 const app = express();
@@ -9,6 +10,28 @@ app.use(cors({
   allowedHeaders: ['Content-Type']
 }));
 app.use(express.json());
+
+// Serve static files with PWA-friendly headers
+app.use(express.static(path.join(__dirname), {
+  setHeaders: (res, filePath) => {
+    // Cache manifest, service worker, and HTML with short cache
+    if (filePath.endsWith('manifest.json') || filePath.endsWith('serviceworker.js') || filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'max-age=3600, must-revalidate'); // 1 hour
+    }
+    // Cache static assets longer
+    else if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2)$/)) {
+      res.setHeader('Cache-Control', 'max-age=31536000, immutable'); // 1 year
+    }
+    // Service worker needs proper MIME type
+    if (filePath.endsWith('serviceworker.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+    // Manifest needs proper MIME type
+    if (filePath.endsWith('manifest.json')) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+    }
+  }
+}));
 
 // Configure your local PostgreSQL connection
 const pool = new Pool({
@@ -84,5 +107,11 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
+// Fallback to index.html for client-side routing (SPA)
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.listen(3000, () => console.log('Backend API running on http://localhost:3000'));
+console.log('PWA ready - Service Worker at ./serviceworker.js');
 

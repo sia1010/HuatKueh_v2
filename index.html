@@ -303,10 +303,67 @@
   </script>
   </body>
   <script>
+    let deferredPrompt;
+    
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./service-worker.js")
-        .then(() => console.log("Service Worker registered"))
-        .catch(err => console.error("Service Worker registration failed:", err));
+      navigator.serviceWorker.register("./serviceworker.js")
+        .then(() => console.log("✓ Service Worker registered"))
+        .catch(err => console.error("✗ Service Worker registration failed:", err));
+    }
+
+    // PWA Install Prompt
+    window.addEventListener('beforeinstallprompt', (event) => {
+      console.log('✓ beforeinstallprompt fired - app is installable');
+      event.preventDefault();
+      deferredPrompt = event;
+      showInstallButton();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      console.log('✓ PWA installed successfully');
+      hideInstallButton();
+    });
+
+    function showInstallButton() {
+      let installBtn = document.getElementById('installPWA');
+      if (!installBtn) {
+        installBtn = document.createElement('button');
+        installBtn.id = 'installPWA';
+        installBtn.style.cssText = `
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          z-index: 1000;
+          padding: 10px 15px;
+          background: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-weight: bold;
+        `;
+        installBtn.textContent = '📱 Install App';
+        installBtn.onclick = () => {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+              if (choiceResult.outcome === 'accepted') {
+                console.log('✓ User installed the app');
+              }
+              deferredPrompt = null;
+              hideInstallButton();
+            });
+          }
+        };
+        document.body.appendChild(installBtn);
+      }
+    }
+
+    function hideInstallButton() {
+      const installBtn = document.getElementById('installPWA');
+      if (installBtn) {
+        installBtn.style.display = 'none';
+      }
     }
   </script> 
 
