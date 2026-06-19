@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Order Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+        h1 { text-align: center; }
+        table { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #4CAF50; color: white; position:sticky; top: -1px; z-index: 10;}
+        tr { font-size: 18px;}
+        tr:nth-child(even) { background: #f2f2f2; }
+        button { padding: 5px 10px; margin: 2px; border: none; border-radius: 4px; cursor: pointer; }
+        .edit-btn { background: #2196F3; color: white; height:40px; margin-bottom: 15px; }
+        .edit-btn:hover:not(:disabled) {
+          background: #2d91da;
+        }
+        .delete-btn { background: #f44336; color: white; height:40px; }
+        .delete-btn:hover:not(:disabled) {
+          background: #d43326;
+        }
+        #tableDiv{
+          width: 96%;
+          z-index: 500;
+          position: fixed;
+          top: 260px;   /* adjust to below your sticky header */
+          bottom: 0;
+          overflow: auto; /* auto is usually better than scroll */
+          margin-bottom: 40px; 
+        }
+        #reportTable tbody tr:last-child {font-weight: bold; background: #e0f7fa; }
+
+        #stickyHeader {
+          position: sticky;
+          top: 0;
+          z-index: 1000; /* keeps it above table content */
+          background: #f9f9f9; /* match page background */
+          padding-bottom: 10px;
+          border-bottom: 1px solid #ddd;
+        }
+
+        #stickyHeader h1 {
+          margin: 0;
+          text-align: center;
+          background: #f9f9f9;
+          padding: 12px 0;
+        }
+    </style>
+    <meta name="theme-color" content="#4CAF50">
+  </head>
+  <body>
+    <div id="stickyHeader">
+    <a href="/index.html" style="
+    display: inline-block;
+    margin-bottom: 10px;
+    background: #4CAF50;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+  ">
+      Order Form
+    </a>
+
+    <h1>Kueh Report</h1>
+
+    <div id="toastContainer" style="
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;"></div>
+
+    <div id="filterContainer" style="
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      font-family: Arial, sans-serif;
+      font-size: 18px;
+    ">
+      <label style="display: flex; flex-direction: column; font-weight: 500;">
+        Name
+        <select id="filterName" style="
+          padding: 6px 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          font-size: 18px;
+          min-width: 160px;
+        ">
+          <option value="">-- All Customers --</option>
+        </select>
+      </label>
+
+      <label style="display: flex; flex-direction: column; font-weight: 500;">
+        From
+        <input type="date" id="filterStart" style="
+          padding: 6px 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          font-size: 18px;
+        ">
+      </label>
+
+      <label style="display: flex; flex-direction: column; font-weight: 500;">
+        To
+        <input type="date" id="filterEnd" style="
+          padding: 6px 10px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          font-size: 18px;
+        ">
+      </label>
+
+        <button type="button" id="clearDateFilter" style="
+          padding: 8px 14px;
+          background: #cfac2b;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 18x;
+          cursor: pointer;
+        ">Clear Date</button>
+
+        <button type="button" id="clearAllFilter" style="
+          padding: 8px 14px;
+          background: #f44336;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 18px;
+          cursor: pointer;
+        ">Reset</button>
+    </div>
+    </div>
+    
+    <div id="tableDiv">
+      <table id="reportTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <script type="module">
+
+    async function loadReport(filter = {}) {
+         try {
+            // REPLACE THIS:
+            // const { data: orders, error } = await query;
+
+            // WITH THIS:
+            const url = new URL('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
+            if (filter.startDate) url.searchParams.append('startDate', filter.startDate);
+            if (filter.endDate) url.searchParams.append('endDate', filter.endDate);
+            if (filter.name) url.searchParams.append('name', filter.name);
+
+            const response = await fetch(url);
+            const orders = await response.json();
+
+            if (orders) {
+              const today = new Date();
+              today.setHours(0,0,0,0); // normalize to midnight
+
+              orders.sort((a, b) => {
+                const da = new Date(a.deliver_date);
+                const db = new Date(b.deliver_date);
+
+                da.setHours(0,0,0,0);
+                db.setHours(0,0,0,0);
+
+                // Compute a relative sort key:
+                // Today = 0, future = positive, past = negative
+                const keyA = da - today;
+                const keyB = db - today;
+
+                // Sort logic:
+                // today first, then future ascending, then past descending
+                if (keyA === 0) return -1; // today comes first
+                if (keyB === 0) return 1;
+
+                if (keyA > 0 && keyB > 0) return keyA - keyB; // both future
+                if (keyA < 0 && keyB < 0) return keyB - keyA; // both past
+
+                // One future, one past
+                return keyA > 0 ? -1 : 1;
+              });
+            }
+
+
+            // Now `orders` is sorted in your desired order
+            console.log(orders);
+
+            const tableHead = document.querySelector("#reportTable thead");
+            const tableBody = document.querySelector("#reportTable tbody");
+
+            const columns = [
+                'deliver_date','deliver_time','name','small','four_inch','six_inch','eight_inch','talam_kueh','white_sugar_kueh','white_sugar_kueh_red','water_kueh','remarks'
+            ];
+
+            const displayColumns = [
+                "Deliver Date",
+                "Deliver Time",
+                "Name",
+                "发糕",
+                "4\"发糕",
+                "6\"发糕",
+                "8\"发糕",
+                "Talam糕",
+                "白糖糕",
+                "白糖糕(红)",
+                "水糕",
+                "Remarks"
+            ];
+
+            tableHead.innerHTML = '<tr>' + displayColumns.map((col, i) => {
+                if (i == 0) return `<th style="width:125px;">${col}</th>`;
+                else if (i >= 1 && i <= 10) return `<th style="width:105px;">${col}</th>`;
+                else return `<th style="width: 25px;">${col}</th>`;
+            }).join("") + '<th style="width:125px;">Actions</th></tr>';
+
+            const numericCols = ['small','four_inch','six_inch','eight_inch','talam_kueh','white_sugar_kueh','white_sugar_kueh_red','water_kueh'];
+            const totals = {};
+            numericCols.forEach(c => totals[c] = 0);
+
+            const pastPalette   = ["#F2DCE8", "#F5E6E7"]; // repeating shades for past dates
+            const futurePalette = ["#E6F2FF", "#D7EAFC"]; // repeating shades for future dates
+            const pastColorMap  = {}; // dateKey -> color
+            const futureColorMap = {}; // dateKey -> color
+            let pastIndex = 0;
+            let futureIndex = 0;
+
+            const formatDateKey = d =>
+              `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+            const today = new Date();
+            const todayKey = formatDateKey(today);
+
+
+            tableBody.innerHTML = orders.map(order => {
+                numericCols.forEach(col => totals[col] += parseInt(order[col]) || 0);
+
+                const rowHtml = columns.map(col => {
+                    let value = order[col];
+                    if (col === 'deliver_date' && value) {
+                      const date = new Date(value);
+                      const day = date.toLocaleDateString("en-US", { weekday: "long" });
+                      value = `${value} (${day})`;
+                    }
+                    if (value === null) value = ""; // replace null with empty string
+                    if (value === 0) value = ""; // replace 0 with empty string
+                    if (value === "0") value = ""; // replace "0" with empty string
+                    return `<td style="height:70px;">${value}</td>`;
+                }).join("");
+
+                const deliverDate = new Date(order.deliver_date);
+                const dateKey = formatDateKey(deliverDate);
+
+                let bgColor = "#fff";
+
+                if (dateKey === todayKey) {
+                  // special highlight for today
+                  bgColor = "#F5F4D3";
+                } else if (dateKey < todayKey) {
+                  // past
+                  if (!pastColorMap[dateKey]) {
+                    // assign next color from palette (cycles)
+                    pastColorMap[dateKey] = pastPalette[pastIndex % pastPalette.length];
+                    pastIndex++;
+                  }
+                  bgColor = pastColorMap[dateKey];
+                } else {
+                  // future
+                  if (!futureColorMap[dateKey]) {
+                    futureColorMap[dateKey] = futurePalette[futureIndex % futurePalette.length];
+                    futureIndex++;
+                  }
+                  bgColor = futureColorMap[dateKey];
+                }
+
+
+                return `<tr data-id="${order.id}" style="background-color:${bgColor}">
+                            ${rowHtml}
+                            <td>
+                            <button class="edit-btn" onclick="editRow(${order.id})">Edit</button>
+                            <button class="delete-btn" onclick="deleteRow(${order.id})">Delete</button>
+                            </td>
+                        </tr>`;
+            }).join("");
+
+            const totalsRowHtml = columns.map(col => {
+                if (numericCols.includes(col)) return `<td><strong>${totals[col]}</strong></td>`;
+                else if (col === 'name') return `<td><strong>Total</strong></td>`;
+                else return `<td></td>`;
+            }).join("");
+
+            tableBody.innerHTML += `<tr style="background:#D3D3D3;">${totalsRowHtml}<td></td></tr>`;
+
+        } catch (err) {
+            console.error("Error loading report:", err);
+            document.body.innerHTML += "<p style='color:red'>Failed to load report.</p>";
+        }
+    }
+
+
+    // --- Edit row ---
+    const columns = [
+                'deliver_date','deliver_time','name','small','four_inch','six_inch','eight_inch','talam_kueh','white_sugar_kueh','white_sugar_kueh_red','water_kueh','remarks'
+            ];
+
+    window.editRow = function(id) {
+    const row = document.querySelector(`#reportTable tbody tr[data-id="${id}"]`);
+    const cells = row.querySelectorAll("td");
+
+    cells[0].innerHTML = `<input type="date" value="${cells[0].textContent.replace(/\s*\([^)]*\)/, "")}" 
+        style="width:100%; height:80%; font-size: 14px; box-sizing: border-box; text-align: center;">`;
+
+    for (let i = 1; i < cells.length - 1; i++) {
+        if (i === 2) continue;
+        const val = cells[i].textContent;
+        cells[i].innerHTML = `<input type="text" value="${val}" 
+            style="width:100%; height:80%; font-size: 18px; box-sizing: border-box; text-align: center;">`;
+    }
+
+
+    // Replace buttons with Save + Cancel using addEventListener
+    const actionCell = cells[cells.length - 1];
+    actionCell.innerHTML = ""; // clear existing buttons
+
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "edit-btn";
+    saveBtn.textContent = "Save";
+    saveBtn.addEventListener("click", () => saveRow(id));
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", () => {
+        const startDate = document.getElementById("filterStart").value;
+        const endDate = document.getElementById("filterEnd").value;
+        const name = document.getElementById("filterName").value;
+        loadReport({ startDate, endDate, name });});
+
+    actionCell.appendChild(saveBtn);
+    actionCell.appendChild(cancelBtn);
+    };
+
+
+    // --- Save row ---
+    window.saveRow = async function(id) {
+      const row = document.querySelector(`#reportTable tbody tr[data-id="${id}"]`);
+      if (!row) return;
+
+      const cells = row.querySelectorAll("td");
+      const updatedData = {};
+
+      // Iterate through table cells (assumes columns[] order matches td order)
+      for (let i = 0; i < columns.length; i++) {
+        const cell = cells[i];
+        if (!cell) continue;
+
+        // find editable field inside this cell (if any)
+        const field = cell.querySelector("input, select, textarea");
+        if (!field) continue; // non-editable cell => skip
+
+        const raw = field.value;
+
+        if (field.type === "date") {
+          // Supabase expects YYYY-MM-DD (or null)
+          updatedData[columns[i]] = raw === "" ? null : raw;
+        } else {
+          const trimmed = String(raw).trim();
+          updatedData[columns[i]] = trimmed === "" ? 0 : (isNaN(trimmed) ? trimmed : parseInt(trimmed, 10));
+        }
+      }
+
+      // nothing to update?
+      if (Object.keys(updatedData).length === 0) {
+        showToast("⚠️ Nothing to update", "error");
+        return;
+      }
+
+      try {
+        console.log("Updating row", id, updatedData); // helpful for debugging
+        // REPLACE THIS:
+        // await supabase.from("orders").update(updatedData).eq("id", id);
+
+        // WITH THIS:
+        const response = await fetch(`http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedData)
+        });
+        if (!response.ok) throw new Error('Update failed');
+
+        showToast("✅ Row updated!");
+        const startDate = document.getElementById("filterStart").value;
+        const endDate = document.getElementById("filterEnd").value;
+        const name = document.getElementById("filterName").value;
+        loadReport({ startDate, endDate, name });
+      } catch (err) {
+        console.error("Update failed:", err);
+        showToast("❌ Failed to update row", "error");
+      }
+    };
+
+
+
+    // --- Delete row ---
+    window.deleteRow = async function(id) {
+      if (!confirm("🗑️ Are you sure you want to delete this row?")) return;
+      try {
+        // REPLACE THIS:
+        // await supabase.from('orders').delete().eq('id', id);
+
+        // WITH THIS:
+        const response = await fetch(`http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Delete failed');
+
+        showToast("🗑️ Row deleted!");
+        const startDate = document.getElementById("filterStart").value;
+        const endDate = document.getElementById("filterEnd").value;
+        const name = document.getElementById("filterName").value;
+        loadReport({ startDate, endDate, name });
+      } catch (err) {
+        console.error(err);
+        alert("❌ Failed to delete row");
+      }
+    }
+
+    // --- Toast Notif ---
+    function showToast(message, type = "success", duration = 3000) {
+        const container = document.getElementById("toastContainer");
+        if (!container) return;
+
+        const toast = document.createElement("div");
+        toast.textContent = message;
+        toast.style.padding = "10px 20px";
+        toast.style.marginTop = "10px";
+        toast.style.borderRadius = "5px";
+        toast.style.color = "#fff";
+        toast.style.minWidth = "200px";
+        toast.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+        toast.style.opacity = "0.95";
+        toast.style.transition = "opacity 0.5s";
+
+        if (type === "success") toast.style.background = "#4CAF50";
+        else if (type === "error") toast.style.background = "#f44336";
+        else toast.style.background = "#333";
+
+        container.appendChild(toast);
+
+        // Remove after duration
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            setTimeout(() => container.removeChild(toast), 500);
+        }, duration);
+    }
+
+    // --- Filters ---
+    document.getElementById("filterName").addEventListener("change", () => {
+      const startDate = document.getElementById("filterStart").value;
+      const endDate = document.getElementById("filterEnd").value;
+      const name = document.getElementById("filterName").value;
+      loadReport({ startDate, endDate, name });
+    });
+
+    document.getElementById("filterStart").addEventListener("change", () => {
+      const startDate = document.getElementById("filterStart").value;
+      const endDate = document.getElementById("filterEnd").value;
+      const name = document.getElementById("filterName").value;
+      loadReport({ startDate, endDate, name });
+    });
+    
+    document.getElementById("filterEnd").addEventListener("change", () => {
+      const startDate = document.getElementById("filterStart").value;
+      const endDate = document.getElementById("filterEnd").value;
+      const name = document.getElementById("filterName").value;
+      loadReport({ startDate, endDate, name });
+    });
+    document.getElementById("clearDateFilter").addEventListener("click", () => {
+      document.getElementById("filterStart").value = "";
+      document.getElementById("filterEnd").value = "";
+      const startDate = document.getElementById("filterStart").value;
+      const endDate = document.getElementById("filterEnd").value;
+      const name = document.getElementById("filterName").value;
+      loadReport({ startDate, endDate, name });
+    });
+    
+    document.getElementById("clearAllFilter").addEventListener("click", () => {
+      document.getElementById("filterStart").value = "";
+      document.getElementById("filterEnd").value = "";
+      document.getElementById("filterName").value = "";
+      loadReport();
+    });
+
+    async function loadCustomerFilterOptions() {
+      // REPLACE THIS:
+      // const { data: orders, error } = await query;
+
+      // WITH THIS:
+      const url = new URL('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      // Get unique names
+      const uniqueNames = [...new Set(data.map(row => row.name))];
+
+      const select = document.getElementById("filterName");
+      select.innerHTML = '<option value="">-- All Customers --</option>'; // reset first
+
+      uniqueNames.forEach(name => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+    }
+
+
+    loadReport();
+            
+    loadCustomerFilterOptions();
+  </script>
+  </div>
+  </body>
+  <div id="loginOverlay" style="
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  ">
+      <div
+          style="background:#fff; padding:30px; border-radius:10px; text-align:center;">
+          <h2>Enter Password</h2>
+          <input type="password" id="passwordInput"
+              style="padding:10px; font-size:16px;">
+          <button id="loginBtn"
+              style="margin-top:15px; padding:8px 16px;">Login</button>
+          <p id="errorMsg" style="color:red; display:none;">Wrong password!</p>
+      </div>
+  </div>
+
+  <script>
+      // Replace this with the hash of your chosen password
+      const CORRECT_HASH = "390b452e1c951b421a53a73cbde7f277714d6127640627a9d6911f0a96199baf"; 
+
+      function setCookie(name, value, days) {
+          const d = new Date();
+          d.setTime(d.getTime() + (days*24*60*60*1000));
+          document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/`;
+      }
+
+      function getCookie(name) {
+          const cookies = document.cookie.split(';');
+          for (let c of cookies) {
+              let [k, v] = c.trim().split('=');
+              if (k === name) return v;
+          }
+          return null;
+      }
+
+      async function hashPassword(pw) {
+          const msgUint8 = new TextEncoder().encode(pw);
+          const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+          return Array.from(new Uint8Array(hashBuffer))
+              .map(b => b.toString(16).padStart(2, "0"))
+              .join("");
+      }
+
+      async function checkLogin() {
+          const saved = getCookie("appAuth");
+          if (saved === CORRECT_HASH) {
+              document.getElementById("loginOverlay").style.display = "none";
+          } else {
+              document.getElementById("loginOverlay").style.display = "flex";
+          }
+      }
+
+      document.getElementById("loginBtn").addEventListener("click", async () => {
+          const input = document.getElementById("passwordInput").value;
+          const hash = await hashPassword(input);
+          if (hash === CORRECT_HASH) {
+              setCookie("appAuth", hash, 10000); // store only hash
+              checkLogin();
+          } else {
+              document.getElementById("errorMsg").style.display = "block";
+          }
+      });
+
+      checkLogin();
+    </script>
+</html>

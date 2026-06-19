@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kueh Orders</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4CAF50">
+  </head>
+  <body>
+
+    
+    <a href="/report.html" style="
+    display: inline-block;
+    margin-bottom: 10px;
+    background: #4CAF50;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: bottom 0.4s;
+  ">
+      View Report
+    </a>
+    
+    <h1>Kueh Order Form</h1>
+
+    <form id="orderForm">
+      <label>Deliver Date
+        <input type="date" name="deliver_date" required>
+      </label><br>
+
+      <label>Deliver Time
+        <input type="text" name="deliver_time">
+      </label><br>
+
+      <label for="customerSelect">Name</label>
+      <select id="customerSelect" style="margin-top: -10px;" name="name"
+        required>
+        <option value>-- Select a customer --</option>
+      </select>
+      <div style="margin-top: -20px; margin-bottom: 20px;">
+        <input type="text" id="newCustomer"
+          placeholder="Enter new customer name"
+          style="display:none; margin-top:10px;">
+      </div>
+
+      <label>发糕
+        <input type="number" name="small" min="0">
+      </label><br>
+
+      <label>4" 发糕
+        <input type="number" name="four_inch" min="0">
+      </label><br>
+
+      <label>6" 发糕
+        <input type="number" name="six_inch" min="0">
+      </label><br>
+
+      <label>8" 发糕
+        <input type="number" name="eight_inch" min="0">
+      </label><br>
+
+      <label>Talam糕
+        <input type="number" name="talam_kueh" min="0">
+      </label><br>
+
+      <label>白糖糕
+        <input type="number" name="white_sugar_kueh" min="0">
+      </label><br>
+
+      <label>白糖糕(红)
+        <input type="number" name="white_sugar_kueh_red" min="0">
+      </label><br>
+
+      <label>水糕
+        <input type="number" name="water_kueh" min="0">
+      </label><br>
+
+      <label>Remarks
+        <input type="text" name="remarks">
+      </label><br>
+
+      <button id="submitBtn" class="show">Save Order</button>
+
+      <style>
+        #submitBtn {
+          position: fixed;
+          bottom: 0; /* start visible */
+          left: 0;
+          width: 100%;
+          padding: 15px 0;
+          background: #4CAF50;
+          color: #fff;
+          font-size: 18px;
+          font-weight: bold;
+          border: none;
+          border-radius: 12px 12px 0 0;
+          box-shadow: 0 -2px 6px rgba(0,0,0,0.2);
+          transition: bottom 0.05s ease-out;
+        }
+      </style>
+
+      <script>
+        if (window.visualViewport) {
+          const btn = document.getElementById("submitBtn");
+          let ticking = false;
+
+          const reposition = () => {
+            const viewport = window.visualViewport;
+            const bottomOffset = window.innerHeight - viewport.height - viewport.offsetTop;
+            btn.style.bottom = `${bottomOffset}px`;
+            ticking = false;
+          };
+
+          const requestReposition = () => {
+            if (!ticking) {
+              requestAnimationFrame(reposition);
+              ticking = true;
+            }
+          };
+
+          // use RAF instead of firing hundreds of times
+          window.visualViewport.addEventListener("resize", requestReposition);
+          window.visualViewport.addEventListener("scroll", requestReposition);
+        }
+      </script>
+
+    </form>
+    
+    <div style="padding-bottom: 100px;"></div>
+
+    <script type="module">
+
+    const customerSelect = document.getElementById("customerSelect");
+    const newCustomer = document.getElementById("newCustomer");
+
+    async function loadCustomers() {
+      try {
+        // REPLACE THIS:
+        // const { data, error } = await supabase.from('orders').select('name').neq('name', '').order('name', { ascending: true });
+
+        // WITH THIS:
+        const response = await fetch('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
+        const data = await response.json();
+
+        const uniqueNames = [...new Set(data.map(d => d.name))];
+
+        customerSelect.innerHTML = '<option value="">-- Select a customer --</option>';
+
+        // Populate select with unique names
+        uniqueNames.forEach(name => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        customerSelect.appendChild(option);
+        });
+
+        // Add "New Customer" option
+        const newOption = document.createElement("option");
+        newOption.value = "New Customer";
+        newOption.textContent = "New Customer";
+        customerSelect.appendChild(newOption);
+
+      } catch (err) {
+        console.error("Error loading customers:", err);
+      }
+    }
+
+    customerSelect.addEventListener("change", function () {
+      if (this.value === "New Customer") {
+        newCustomer.style.display = "block";
+        newCustomer.required = true;
+      } else {
+        newCustomer.style.display = "none";
+        newCustomer.required = false;
+      }
+    });
+
+    // Load customers on page load
+    loadCustomers();
+
+    const form = document.getElementById("orderForm");
+    const submitBtn = document.getElementById("submitBtn");
+
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Saving...";
+
+        const formData = Object.fromEntries(new FormData(form).entries());
+
+        // Determine customer name
+        let customerName = formData.name;
+        if (customerName === "New Customer") {
+            if (newCustomer.value.trim() !== "") {
+                customerName = newCustomer.value.trim();
+            } else {
+                showToast("Please enter a customer name.", "error");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Save Order";
+                return;
+            }
+        }
+        formData.name = customerName; // overwrite with correct value
+
+
+
+        // convert numeric fields to integers
+        const numericFields = ['small','four_inch','six_inch','eight_inch','talam_kueh','white_sugar_kueh','white_sugar_kueh_red','water_kueh'];
+        numericFields.forEach(f => formData[f] = parseInt(formData[f]) || 0);
+
+        try {
+            const response = await fetch('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save');
+            }
+
+            showToast("✅ Order saved!");
+            showOverlay()
+            form.reset();
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth" // optional: makes it animated
+            });
+            newCustomer.style.display = "none";
+
+            // reload customers so new name appears
+            loadCustomers();
+
+        } catch (err) {
+            console.error(err);
+            alert("❌ Failed to save order.");
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Save Order";
+        }
+    });
+
+    function showOverlay(duration = 1000) {
+        const overlay = document.createElement("div");
+        overlay.style.position = "fixed";
+        overlay.style.top = "0";
+        overlay.style.left = "0";
+        overlay.style.width = "100%";
+        overlay.style.height = "100%";
+        overlay.style.background = "rgba(0,0,0,0.5)";
+        overlay.style.display = "flex";
+        overlay.style.justifyContent = "center";
+        overlay.style.alignItems = "center";
+        overlay.style.zIndex = "100";
+        overlay.style.transition = "opacity 0.5s";
+
+        overlay.style.pointerEvents = "auto";
+        document.body.appendChild(overlay);
+
+        setTimeout(() => {
+            overlay.style.opacity = "0";
+            setTimeout(() => document.body.removeChild(overlay), 500);
+        }, duration);
+    }
+
+    // --- Toast Notif ---
+    function showToast(message, type = "success", duration = 500) {
+    const toast = document.createElement("div");
+    toast.textContent = message;
+    toast.style.position = "fixed";
+    toast.style.top = "50%";
+    toast.style.left = "50%";
+    toast.style.transform = "translate(-50%, -50%)";
+    toast.style.padding = "10px 20px";
+    toast.style.borderRadius = "5px";
+    toast.style.color = "#fff";
+    toast.style.minWidth = "200px";
+    toast.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
+    toast.style.opacity = "0.95";
+    toast.style.transition = "opacity 1.5s";
+    toast.style.textAlign = "center";
+    toast.style.zIndex = "200";
+
+
+        if (type === "success") toast.style.background = "#4CAF50";
+        else if (type === "error") toast.style.background = "#f44336";
+        else toast.style.background = "#333";
+
+         document.body.appendChild(toast);
+
+        // Remove after duration
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            setTimeout(() =>  document.body.removeChild(toast), 500);
+        }, duration);
+    }
+
+  </script>
+  </body>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./service-worker.js")
+        .then(() => console.log("Service Worker registered"))
+        .catch(err => console.error("Service Worker registration failed:", err));
+    }
+  </script> 
+
+  <div id="loginOverlay" style="
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  ">
+      <div
+          style="background:#fff; padding:30px; border-radius:10px; text-align:center;">
+          <h2>Enter Password</h2>
+          <input type="password" id="passwordInput"
+              style="padding:10px; font-size:16px;">
+          <button id="loginBtn"
+              style="margin-top:15px; padding:8px 16px;">Login</button>
+          <p id="errorMsg" style="color:red; display:none;">Wrong password!</p>
+      </div>
+  </div>
+
+  <script>
+      // Replace this with the hash of your chosen password
+      const CORRECT_HASH = "390b452e1c951b421a53a73cbde7f277714d6127640627a9d6911f0a96199baf"; 
+
+      function setCookie(name, value, days) {
+          const d = new Date();
+          d.setTime(d.getTime() + (days*24*60*60*1000));
+          document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/`;
+      }
+
+      function getCookie(name) {
+          const cookies = document.cookie.split(';');
+          for (let c of cookies) {
+              let [k, v] = c.trim().split('=');
+              if (k === name) return v;
+          }
+          return null;
+      }
+
+      async function hashPassword(pw) {
+          const msgUint8 = new TextEncoder().encode(pw);
+          const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+          return Array.from(new Uint8Array(hashBuffer))
+              .map(b => b.toString(16).padStart(2, "0"))
+              .join("");
+      }
+
+      async function checkLogin() {
+          const saved = getCookie("appAuth");
+          if (saved === CORRECT_HASH) {
+              document.getElementById("loginOverlay").style.display = "none";
+          } else {
+              document.getElementById("loginOverlay").style.display = "flex";
+          }
+      }
+
+      document.getElementById("loginBtn").addEventListener("click", async () => {
+          const input = document.getElementById("passwordInput").value;
+          const hash = await hashPassword(input);
+          if (hash === CORRECT_HASH) {
+              setCookie("appAuth", hash, 10000); // store only hash
+              checkLogin();
+          } else {
+              document.getElementById("errorMsg").style.display = "block";
+          }
+      });
+
+      checkLogin();
+    </script>
+</html>
