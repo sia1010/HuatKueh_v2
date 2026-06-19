@@ -143,7 +143,7 @@
         // const { data, error } = await supabase.from('orders').select('name').neq('name', '').order('name', { ascending: true });
 
         // WITH THIS:
-        const response = await fetch('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
+        const response = await fetch('https://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
         const data = await response.json();
 
         const uniqueNames = [...new Set(data.map(d => d.name))];
@@ -213,7 +213,7 @@
         numericFields.forEach(f => formData[f] = parseInt(formData[f]) || 0);
 
         try {
-            const response = await fetch('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders', {
+            const response = await fetch('https://griminess-enquirer-shortlist.ngrok-free.dev/api/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)

@@ -157,7 +157,7 @@
             // const { data: orders, error } = await query;
 
             // WITH THIS:
-            const url = new URL('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
+            const url = new URL('https://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
             if (filter.startDate) url.searchParams.append('startDate', filter.startDate);
             if (filter.endDate) url.searchParams.append('endDate', filter.endDate);
             if (filter.name) url.searchParams.append('name', filter.name);
@@ -393,7 +393,7 @@
         // await supabase.from("orders").update(updatedData).eq("id", id);
 
         // WITH THIS:
-        const response = await fetch(`http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders/${id}`, {
+        const response = await fetch(`https://griminess-enquirer-shortlist.ngrok-free.dev/api/orders/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updatedData)
@@ -421,7 +421,7 @@
         // await supabase.from('orders').delete().eq('id', id);
 
         // WITH THIS:
-        const response = await fetch(`http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders/${id}`, { method: 'DELETE' });
+        const response = await fetch(`https://griminess-enquirer-shortlist.ngrok-free.dev/api/orders/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Delete failed');
 
         showToast("🗑️ Row deleted!");
@@ -506,7 +506,7 @@
       // const { data: orders, error } = await query;
 
       // WITH THIS:
-      const url = new URL('http://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
+      const url = new URL('https://griminess-enquirer-shortlist.ngrok-free.dev/api/orders');
 
       const response = await fetch(url);
       const data = await response.json();
