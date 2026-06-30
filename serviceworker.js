@@ -1,7 +1,5 @@
 const CACHE_NAME = "kueh-orders-cache-v1";
 const urlsToCache = [
-  "./index.html",
-  "./report.html",
   "./style.css",
   "./manifest.json",
   "./icon-192.png",
@@ -38,36 +36,26 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Skip non-GET requests
-  if (event.request.method !== "GET") {
+  const url = new URL(event.request.url);
+
+  // 1. Bypass API (Never cache data)
+  if (url.pathname.includes('/api/')) {
+    return; 
+  }
+
+  // 2. Network-First for HTML files (Always get fresh page, fallback to cache)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 
+  // 3. Cache-First for static assets (CSS, images)
   event.respondWith(
     caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
-
-      return fetch(event.request).then((response) => {
-        // Don't cache non-successful responses or API calls
-        if (!response || response.status !== 200 || event.request.url.includes('/api/')) {
-          return response;
-        }
-
-        // Clone the response
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
-        return response;
-      }).catch(() => {
-        // Offline fallback
-        if (event.request.destination === 'document') {
-          return caches.match('./index.html');
-        }
-      });
+      return response || fetch(event.request);
     })
   );
 });

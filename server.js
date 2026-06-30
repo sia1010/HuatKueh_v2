@@ -46,7 +46,13 @@ const pool = new Pool({
 app.get('/api/orders', async (req, res) => {
   try {
     const { startDate, endDate, name } = req.query;
-    let query = 'SELECT * FROM orders WHERE 1=1';
+    
+    // Use TO_CHAR to format the date directly in the query
+    let query = `
+      SELECT *, TO_CHAR(deliver_date, 'YYYY-MM-DD') AS deliver_date_formatted 
+      FROM orders 
+      WHERE 1=1
+    `;
     const params = [];
 
     if (startDate) { params.push(startDate); query += ` AND deliver_date >= $${params.length}`; }
@@ -56,11 +62,11 @@ app.get('/api/orders', async (req, res) => {
     query += ' ORDER BY deliver_date ASC, name ASC';
     
     const result = await pool.query(query, params);
+    
+    // Map results to use the formatted date
     const formattedRows = result.rows.map(row => {
-      if (row.deliver_date instanceof Date) {
-        // Convert the Date object to YYYY-MM-DD string
-        row.deliver_date = row.deliver_date.toISOString().split('T')[0];
-      }
+      row.deliver_date = row.deliver_date_formatted;
+      delete row.deliver_date_formatted; // Clean up the helper column
       return row;
     });
 
